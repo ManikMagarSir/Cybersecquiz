@@ -45,8 +45,8 @@ restartBtn.addEventListener('click', startQuiz);
 
 // Modal Restart Action
 modalRestartBtn.addEventListener('click', () => {
-    securityModal.classList.add('hidden'); // Hide modal
-    returnToStartScreen(); // Reset game
+    securityModal.classList.add('hidden'); 
+    returnToStartScreen(); 
 });
 
 // ==========================================
@@ -60,7 +60,7 @@ document.addEventListener("visibilitychange", () => {
     }
 });
 
-// 2. Detect Focus Loss (Clicking outside)
+// 2. Detect Focus Loss
 window.addEventListener("blur", () => {
     if (isQuizActive) {
         triggerCheatPenalty("Window focus lost.");
@@ -72,7 +72,7 @@ document.addEventListener("contextmenu", (e) => {
     e.preventDefault();
 });
 
-// 4. Disable DevTools
+// 4. Disable DevTools keys
 document.addEventListener("keydown", (e) => {
     if (e.key === "F12" || 
        (e.ctrlKey && e.shiftKey && (e.key === "I" || e.key === "J")) || 
@@ -83,13 +83,9 @@ document.addEventListener("keydown", (e) => {
 });
 
 function triggerCheatPenalty(reason) {
-    if (!isQuizActive) return; // Prevent double firing
+    if (!isQuizActive) return; 
     isQuizActive = false;
-    
-    // Inject text into custom modal
     securityReason.innerText = reason;
-    
-    // Show the modal
     securityModal.classList.remove('hidden');
 }
 
@@ -108,7 +104,7 @@ function startQuiz() {
     score = 0;
     currentQuestionIndex = 0;
     
-    // Randomize Questions
+    // 1. Randomize the Order of Questions
     const shuffled = [...questionBank].sort(() => 0.5 - Math.random());
     currentQuestions = shuffled.slice(0, QUESTIONS_PER_SESSION);
     
@@ -121,7 +117,6 @@ function startQuiz() {
     
     loadQuestion();
 
-    // Delay anti-cheat activation to prevent instant trigger
     setTimeout(() => {
         isQuizActive = true;
     }, 500);
@@ -140,33 +135,61 @@ function loadQuestion() {
     const progress = ((currentQuestionIndex) / currentQuestions.length) * 100;
     progressBar.style.width = `${progress}%`;
 
-    qData.options.forEach((opt, index) => {
+    // --- OPTION RANDOMIZATION LOGIC ---
+    
+    // 1. Map options to objects to keep track of the original correct answer
+    // We attach the original index to know which one was the answer
+    let shuffledOptions = qData.options.map((optionText, originalIndex) => {
+        return { text: optionText, originalIndex: originalIndex };
+    });
+
+    // 2. Shuffle the options array
+    shuffledOptions.sort(() => Math.random() - 0.5);
+
+    // 3. Render the shuffled buttons
+    shuffledOptions.forEach((optObj) => {
         const btn = document.createElement('button');
-        btn.innerText = opt;
+        btn.innerText = optObj.text;
         btn.classList.add('option-btn');
-        btn.addEventListener('click', () => checkAnswer(index, qData.answer, qData.explanation, btn));
+        
+        // Mark the correct answer in the DOM dataset
+        if (optObj.originalIndex === qData.answer) {
+            btn.dataset.isCorrect = "true";
+        } else {
+            btn.dataset.isCorrect = "false";
+        }
+
+        btn.addEventListener('click', () => checkAnswer(btn, qData.explanation));
         optionsContainer.appendChild(btn);
     });
 }
 
-function checkAnswer(selectedIndex, correctIndex, explanation, selectedBtn) {
-    const allOptions = optionsContainer.children;
-    for (let btn of allOptions) {
-        btn.disabled = true;
-    }
+function checkAnswer(selectedBtn, explanation) {
+    const allBtns = Array.from(optionsContainer.children);
+    
+    // Disable all buttons
+    allBtns.forEach(btn => btn.disabled = true);
 
     explanationText.innerText = explanation;
     explanationCard.classList.remove('hidden'); 
 
-    if (selectedIndex === correctIndex) {
+    // Check if the clicked button was correct
+    if (selectedBtn.dataset.isCorrect === "true") {
+        // CORRECT
         selectedBtn.classList.add('correct');
         score++;
         scoreSpan.innerText = score;
+        
         explanationCard.classList.add('correct-feedback');
         explanationTitle.innerText = "Correct! Here is why:";
     } else {
+        // WRONG
         selectedBtn.classList.add('wrong');
-        allOptions[correctIndex].classList.add('correct');
+        
+        // Find the actual correct button and highlight it green
+        const correctBtn = allBtns.find(btn => btn.dataset.isCorrect === "true");
+        if (correctBtn) correctBtn.classList.add('correct');
+
         explanationCard.classList.remove('correct-feedback');
         explanationTitle.innerText = "Incorrect. Here is the logic:";
     }
