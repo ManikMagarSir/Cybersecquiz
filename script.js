@@ -1,9 +1,11 @@
+// --- START OF FILE script.js ---
+
 // Access the questionBank variable from questions.js
-// Configuration
+// Configuration: Set to load 25 Medium and 25 Hard
 const CONFIG = {
-    easyCount: 10,
-    mediumCount: 20,
-    hardCount: 20
+    easyCount: 0,
+    mediumCount: 25,
+    hardCount: 25
 };
 
 let currentQuestions = [];
@@ -80,6 +82,18 @@ function returnToStartScreen() {
     startScreen.classList.add('active');
 }
 
+// --- UTILITY: Fisher-Yates Shuffle ---
+function fisherYatesShuffle(array) {
+    let currentIndex = array.length, randomIndex;
+    while (currentIndex != 0) {
+        randomIndex = Math.floor(Math.random() * currentIndex);
+        currentIndex--;
+        [array[currentIndex], array[randomIndex]] = [
+            array[randomIndex], array[currentIndex]];
+    }
+    return array;
+}
+
 // --- QUIZ LOGIC ---
 
 function startQuiz() {
@@ -87,21 +101,20 @@ function startQuiz() {
     currentQuestionIndex = 0;
     
     // 1. Separate Questions by Difficulty
-    const easyQs = questionBank.filter(q => q.difficulty === "Easy");
-    const mediumQs = questionBank.filter(q => q.difficulty === "Medium");
-    const hardQs = questionBank.filter(q => q.difficulty === "Hard");
+    const mediumQs = [...questionBank.filter(q => q.difficulty === "Medium")];
+    const hardQs = [...questionBank.filter(q => q.difficulty === "Hard")];
 
-    // 2. Shuffle Each Bucket
-    const shuffle = (arr) => arr.sort(() => Math.random() - 0.5);
+    // 2. Shuffle Each Bucket Independently first
+    const shuffledMedium = fisherYatesShuffle(mediumQs);
+    const shuffledHard = fisherYatesShuffle(hardQs);
     
-    // 3. Select Specific Counts
-    // Fallback: If not enough questions, take as many as possible
-    const selectedEasy = shuffle(easyQs).slice(0, CONFIG.easyCount);
-    const selectedMedium = shuffle(mediumQs).slice(0, CONFIG.mediumCount);
-    const selectedHard = shuffle(hardQs).slice(0, CONFIG.hardCount);
+    // 3. Select Specific Counts (25 of each)
+    const selectedMedium = shuffledMedium.slice(0, CONFIG.mediumCount);
+    const selectedHard = shuffledHard.slice(0, CONFIG.hardCount);
 
-    // 4. Combine into one Master List
-    currentQuestions = [...selectedEasy, ...selectedMedium, ...selectedHard];
+    // 4. Combine AND SHUFFLE AGAIN so difficulties are mixed
+    // This ensures questions do not come sequentially (e.g., not all Mediums then all Hards)
+    currentQuestions = fisherYatesShuffle([...selectedMedium, ...selectedHard]);
     
     totalQSpan.innerText = currentQuestions.length;
     scoreSpan.innerText = 0;
@@ -118,8 +131,8 @@ function startQuiz() {
 function loadQuestion() {
     const qData = currentQuestions[currentQuestionIndex];
     
-    // Display Difficulty Badge if you want (Optional)
-    // questionText.innerHTML = `<span style="font-size:0.8rem; color:#aaa;">[${qData.difficulty}]</span><br>${qData.question}`;
+    // Display Difficulty Badge (Optional - helpful for debugging/study)
+    // questionText.innerHTML = `<span style="font-size:0.8rem; color:#666; display:block; margin-bottom:10px;">[${qData.difficulty}]</span>${qData.question}`;
     questionText.innerText = qData.question;
     
     optionsContainer.innerHTML = '';
@@ -131,9 +144,8 @@ function loadQuestion() {
     const progress = ((currentQuestionIndex) / currentQuestions.length) * 100;
     progressBar.style.width = `${progress}%`;
 
-    // Shuffle Options
-    let shuffledOptions = qData.options.map((text, idx) => ({ text, originalIndex: idx }));
-    shuffledOptions.sort(() => Math.random() - 0.5);
+    let optionsWithIndices = qData.options.map((text, idx) => ({ text, originalIndex: idx }));
+    let shuffledOptions = fisherYatesShuffle(optionsWithIndices);
 
     shuffledOptions.forEach((optObj) => {
         const btn = document.createElement('button');
@@ -179,13 +191,13 @@ function showResults() {
     
     const percentage = (score / currentQuestions.length) * 100;
     if (percentage >= 80) {
-        feedbackMsg.innerText = "Outstanding! You are ready for the exam.";
+        feedbackMsg.innerText = "Distinction Level. Excellent conceptual grasp.";
         feedbackMsg.style.color = "#4ade80";
-    } else if (percentage >= 50) {
-        feedbackMsg.innerText = "Good job. Focus on the Hard questions.";
+    } else if (percentage >= 60) {
+        feedbackMsg.innerText = "Good pass. Review the explanation cards for missed topics.";
         feedbackMsg.style.color = "#38bdf8";
     } else {
-        feedbackMsg.innerText = "Keep practicing. Review the fundamentals.";
+        feedbackMsg.innerText = "Critical gaps detected. Review the lecture slides.";
         feedbackMsg.style.color = "#f87171";
     }
 }
