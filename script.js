@@ -3,28 +3,33 @@ const QUESTIONS_PER_SESSION = 50;
 let currentQuestions = [];
 let currentQuestionIndex = 0;
 let score = 0;
+let isQuizActive = false; 
 
-// DOM Elements
+// DOM Elements - Main
 const startScreen = document.getElementById('start-screen');
 const quizScreen = document.getElementById('quiz-screen');
 const resultScreen = document.getElementById('result-screen');
-
 const startBtn = document.getElementById('start-btn');
 const nextBtn = document.getElementById('next-btn');
 const restartBtn = document.getElementById('restart-btn');
 
+// DOM Elements - Quiz Content
 const questionText = document.getElementById('question-text');
 const optionsContainer = document.getElementById('options-container');
 const explanationCard = document.getElementById('explanation-card');
 const explanationText = document.getElementById('explanation-text');
-const explanationTitle = explanationCard.querySelector('h4'); // Grab the H4 inside the card
-
+const explanationTitle = explanationCard.querySelector('h4');
 const currentQSpan = document.getElementById('current-q');
 const totalQSpan = document.getElementById('total-q');
 const scoreSpan = document.getElementById('score');
 const progressBar = document.getElementById('progress-bar');
 const finalScoreSpan = document.getElementById('final-score');
 const feedbackMsg = document.getElementById('feedback-msg');
+
+// DOM Elements - Security Modal
+const securityModal = document.getElementById('security-modal');
+const securityReason = document.getElementById('security-reason');
+const modalRestartBtn = document.getElementById('modal-restart-btn');
 
 // Event Listeners
 startBtn.addEventListener('click', startQuiz);
@@ -38,47 +43,103 @@ nextBtn.addEventListener('click', () => {
 });
 restartBtn.addEventListener('click', startQuiz);
 
-// Functions
+// Modal Restart Action
+modalRestartBtn.addEventListener('click', () => {
+    securityModal.classList.add('hidden'); // Hide modal
+    returnToStartScreen(); // Reset game
+});
+
+// ==========================================
+//           ANTI-CHEAT SECURITY MODULE
+// ==========================================
+
+// 1. Detect Tab Switching
+document.addEventListener("visibilitychange", () => {
+    if (isQuizActive && document.hidden) {
+        triggerCheatPenalty("Tab switching detected.");
+    }
+});
+
+// 2. Detect Focus Loss (Clicking outside)
+window.addEventListener("blur", () => {
+    if (isQuizActive) {
+        triggerCheatPenalty("Window focus lost.");
+    }
+});
+
+// 3. Disable Context Menu
+document.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+});
+
+// 4. Disable DevTools
+document.addEventListener("keydown", (e) => {
+    if (e.key === "F12" || 
+       (e.ctrlKey && e.shiftKey && (e.key === "I" || e.key === "J")) || 
+       (e.ctrlKey && e.key === "U")) {
+        e.preventDefault();
+        triggerCheatPenalty("Developer tools accessed.");
+    }
+});
+
+function triggerCheatPenalty(reason) {
+    if (!isQuizActive) return; // Prevent double firing
+    isQuizActive = false;
+    
+    // Inject text into custom modal
+    securityReason.innerText = reason;
+    
+    // Show the modal
+    securityModal.classList.remove('hidden');
+}
+
+function returnToStartScreen() {
+    isQuizActive = false;
+    quizScreen.classList.remove('active');
+    resultScreen.classList.remove('active');
+    startScreen.classList.add('active');
+}
+
+// ==========================================
+//           CORE QUIZ LOGIC
+// ==========================================
 
 function startQuiz() {
-    // Reset state
     score = 0;
     currentQuestionIndex = 0;
     
-    // --- RANDOMIZATION LOGIC ---
-    // This shuffles the master bank and slices the first 50 every time you start/restart
+    // Randomize Questions
     const shuffled = [...questionBank].sort(() => 0.5 - Math.random());
     currentQuestions = shuffled.slice(0, QUESTIONS_PER_SESSION);
     
-    // Update UI
     totalQSpan.innerText = currentQuestions.length;
     scoreSpan.innerText = 0;
     
-    // Switch screens
     startScreen.classList.remove('active');
     resultScreen.classList.remove('active');
     quizScreen.classList.add('active');
     
     loadQuestion();
+
+    // Delay anti-cheat activation to prevent instant trigger
+    setTimeout(() => {
+        isQuizActive = true;
+    }, 500);
 }
 
 function loadQuestion() {
-    // Reset UI for new question
     const qData = currentQuestions[currentQuestionIndex];
     questionText.innerText = qData.question;
     optionsContainer.innerHTML = '';
     
-    // Hide explanation and Next button for the new question
     explanationCard.classList.add('hidden');
-    explanationCard.classList.remove('correct-feedback'); // Reset color
+    explanationCard.classList.remove('correct-feedback'); 
     nextBtn.classList.add('hidden');
     
-    // Update Header stats
     currentQSpan.innerText = currentQuestionIndex + 1;
     const progress = ((currentQuestionIndex) / currentQuestions.length) * 100;
     progressBar.style.width = `${progress}%`;
 
-    // Create Options
     qData.options.forEach((opt, index) => {
         const btn = document.createElement('button');
         btn.innerText = opt;
@@ -89,47 +150,35 @@ function loadQuestion() {
 }
 
 function checkAnswer(selectedIndex, correctIndex, explanation, selectedBtn) {
-    // 1. Disable all buttons to prevent changing answer
     const allOptions = optionsContainer.children;
     for (let btn of allOptions) {
         btn.disabled = true;
     }
 
-    // 2. Prepare the Explanation Text
     explanationText.innerText = explanation;
-    explanationCard.classList.remove('hidden'); // SHOW CARD (Logic Requirement Met)
+    explanationCard.classList.remove('hidden'); 
 
-    // 3. Check Logic
     if (selectedIndex === correctIndex) {
-        // CORRECT ANSWER
         selectedBtn.classList.add('correct');
         score++;
         scoreSpan.innerText = score;
-        
-        // Turn the card GREEN
         explanationCard.classList.add('correct-feedback');
         explanationTitle.innerText = "Correct! Here is why:";
-        
     } else {
-        // WRONG ANSWER
         selectedBtn.classList.add('wrong');
-        // Highlight the correct one so they know
         allOptions[correctIndex].classList.add('correct');
-        
-        // Turn the card YELLOW (Default style, remove green if present)
         explanationCard.classList.remove('correct-feedback');
         explanationTitle.innerText = "Incorrect. Here is the logic:";
     }
 
-    // 4. Show Next Button
     nextBtn.classList.remove('hidden');
     
-    // Update progress bar
     const progress = ((currentQuestionIndex + 1) / currentQuestions.length) * 100;
     progressBar.style.width = `${progress}%`;
 }
 
 function showResults() {
+    isQuizActive = false;
     quizScreen.classList.remove('active');
     resultScreen.classList.add('active');
     finalScoreSpan.innerText = score;
@@ -137,12 +186,12 @@ function showResults() {
     const percentage = (score / currentQuestions.length) * 100;
     if (percentage >= 80) {
         feedbackMsg.innerText = "Excellent Work! You have mastered these modules.";
-        feedbackMsg.style.color = "#27ae60";
+        feedbackMsg.style.color = "#4ade80";
     } else if (percentage >= 50) {
         feedbackMsg.innerText = "Good effort, but review the lecture notes again.";
-        feedbackMsg.style.color = "#f39c12";
+        feedbackMsg.style.color = "#38bdf8";
     } else {
         feedbackMsg.innerText = "Keep studying! Try again to improve your score.";
-        feedbackMsg.style.color = "#c0392b";
+        feedbackMsg.style.color = "#f87171";
     }
 }
