@@ -1,11 +1,11 @@
 // --- START OF FILE script.js ---
 
-// Access the questionBank variable from questions.js
-// Configuration: Set to load 25 Medium and 25 Hard
+// Configuration
+// We set specific targets, but the code below is "safe" 
+// (it won't crash if you have fewer questions).
 const CONFIG = {
-    easyCount: 0,
-    mediumCount: 25,
-    hardCount: 25
+    includeEasy: false,   // Set to true if you want Easy questions mixed in
+    maxQuestions: 50      // Max number of questions to show in one quiz
 };
 
 let currentQuestions = [];
@@ -82,7 +82,7 @@ function returnToStartScreen() {
     startScreen.classList.add('active');
 }
 
-// --- UTILITY: Fisher-Yates Shuffle ---
+// --- UTILITY: Unbiased Fisher-Yates Shuffle ---
 function fisherYatesShuffle(array) {
     let currentIndex = array.length, randomIndex;
     while (currentIndex != 0) {
@@ -100,22 +100,35 @@ function startQuiz() {
     score = 0;
     currentQuestionIndex = 0;
     
-    // 1. Separate Questions by Difficulty
-    const mediumQs = [...questionBank.filter(q => q.difficulty === "Medium")];
-    const hardQs = [...questionBank.filter(q => q.difficulty === "Hard")];
+    // 1. Get copies of questions by difficulty
+    // (Using optional chaining ?. just in case difficulty is missing in your file)
+    const easyQs = questionBank.filter(q => q.difficulty === "Easy");
+    const mediumQs = questionBank.filter(q => q.difficulty === "Medium");
+    const hardQs = questionBank.filter(q => q.difficulty === "Hard");
 
-    // 2. Shuffle Each Bucket Independently first
-    const shuffledMedium = fisherYatesShuffle(mediumQs);
-    const shuffledHard = fisherYatesShuffle(hardQs);
+    // 2. Build the pool based on your preference
+    // Prioritize Hard and Medium for university level
+    let pool = [...hardQs, ...mediumQs];
     
-    // 3. Select Specific Counts (25 of each)
-    const selectedMedium = shuffledMedium.slice(0, CONFIG.mediumCount);
-    const selectedHard = shuffledHard.slice(0, CONFIG.hardCount);
+    // If you want Easy questions mixed in, add them
+    if (CONFIG.includeEasy) {
+        pool = [...pool, ...easyQs];
+    }
 
-    // 4. Combine AND SHUFFLE AGAIN so difficulties are mixed
-    // This ensures questions do not come sequentially (e.g., not all Mediums then all Hards)
-    currentQuestions = fisherYatesShuffle([...selectedMedium, ...selectedHard]);
+    // 3. Shuffle the ENTIRE pool together
+    // This ensures Hard and Medium are completely mixed, not sequential
+    pool = fisherYatesShuffle(pool);
+
+    // 4. Slice to max count (e.g., 50 questions or however many exist)
+    // This prevents errors if you have fewer questions than the max
+    currentQuestions = pool.slice(0, CONFIG.maxQuestions);
     
+    // Safety check: If no questions found
+    if (currentQuestions.length === 0) {
+        alert("No questions found! Check your questions.js file.");
+        return;
+    }
+
     totalQSpan.innerText = currentQuestions.length;
     scoreSpan.innerText = 0;
     
@@ -131,8 +144,8 @@ function startQuiz() {
 function loadQuestion() {
     const qData = currentQuestions[currentQuestionIndex];
     
-    // Display Difficulty Badge (Optional - helpful for debugging/study)
-    // questionText.innerHTML = `<span style="font-size:0.8rem; color:#666; display:block; margin-bottom:10px;">[${qData.difficulty}]</span>${qData.question}`;
+    // Debugging badge (Optional - remove if you want a clean look)
+    // questionText.innerHTML = `<span style="font-size: 0.7rem; background: #eee; padding: 2px 6px; border-radius: 4px; color: #555;">${qData.difficulty}</span><br><br>${qData.question}`;
     questionText.innerText = qData.question;
     
     optionsContainer.innerHTML = '';
@@ -144,6 +157,7 @@ function loadQuestion() {
     const progress = ((currentQuestionIndex) / currentQuestions.length) * 100;
     progressBar.style.width = `${progress}%`;
 
+    // Shuffle Options (preserving correct answer mapping)
     let optionsWithIndices = qData.options.map((text, idx) => ({ text, originalIndex: idx }));
     let shuffledOptions = fisherYatesShuffle(optionsWithIndices);
 
@@ -190,14 +204,14 @@ function showResults() {
     finalScoreSpan.innerText = score;
     
     const percentage = (score / currentQuestions.length) * 100;
-    if (percentage >= 80) {
-        feedbackMsg.innerText = "Distinction Level. Excellent conceptual grasp.";
+    if (percentage >= 70) {
+        feedbackMsg.innerText = "Solid performance. You have a good grasp of the concepts.";
         feedbackMsg.style.color = "#4ade80";
-    } else if (percentage >= 60) {
-        feedbackMsg.innerText = "Good pass. Review the explanation cards for missed topics.";
+    } else if (percentage >= 40) {
+        feedbackMsg.innerText = "Fair effort. Review the specific scenarios you missed.";
         feedbackMsg.style.color = "#38bdf8";
     } else {
-        feedbackMsg.innerText = "Critical gaps detected. Review the lecture slides.";
+        feedbackMsg.innerText = "Study required. Focus on understanding the 'Why' behind the answers.";
         feedbackMsg.style.color = "#f87171";
     }
 }
